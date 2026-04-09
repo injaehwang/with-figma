@@ -1,0 +1,23 @@
+{
+  "name": "with-figma",
+  "version": "0.1.0",
+  "description": "Figma plugin + MCP server bridge for AI-driven design work",
+  "private": true,
+  "scripts": {
+    "build:plugin": "esbuild figma-plugin/code.ts --bundle --outfile=figma-plugin/dist/code.js --target=es2020",
+    "build:server": "esbuild mcp-server/index.ts --bundle --outfile=mcp-server/dist/index.js --platform=node --target=node18 --format=cjs",
+    "build": "npm run build:plugin && npm run build:server",
+    "dev:server": "tsx mcp-server/index.ts",
+    "dev:plugin": "esbuild figma-plugin/code.ts --bundle --outfile=figma-plugin/dist/code.js --target=es2020 --watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.104.0",
+    "esbuild": "^0.24.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.18.0"
+  }
+}

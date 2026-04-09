@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "typeRoots": ["node_modules/@figma"]
+  },
+  "include": ["figma-plugin/**/*.ts", "figma-plugin/**/*.tsx", "mcp-server/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

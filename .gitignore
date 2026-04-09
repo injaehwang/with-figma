@@ -1,0 +1,6 @@
+node_modules/
+dist/
+figma-plugin/dist/
+mcp-server/dist/
+*.js.map
+.DS_Store

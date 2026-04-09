@@ -12,6 +12,15 @@ let pages: any[] = [];
 const pendingRequests = new Map<string, (data: any) => void>();
 let requestCounter = 0;
 
+// Chat message queue from Figma
+interface ChatMessage {
+  text: string;
+  selection: any[];
+  page: any;
+  timestamp: string;
+}
+const chatQueue: ChatMessage[] = [];
+
 function genRequestId(): string {
   return `req_${++requestCounter}_${Date.now()}`;
 }
@@ -55,15 +64,19 @@ function handleFigmaMessage(msg: any) {
       break;
 
     case "chat-message":
-      // Chat messages from Figma UI — store context
       currentSelection = msg.selection || currentSelection;
       currentPage = msg.page || currentPage;
-      // The chat message will be forwarded to AI via MCP tool calls
-      // For now, acknowledge receipt
+      chatQueue.push({
+        text: msg.text,
+        selection: msg.selection || [],
+        page: msg.page || null,
+        timestamp: new Date().toISOString(),
+      });
+      console.error(`[with-figma] Chat message queued: "${msg.text}"`);
       if (figmaSocket) {
         figmaSocket.send(JSON.stringify({
           type: "chat-response",
-          text: `Received: "${msg.text}". Processing via AI agent...`,
+          text: `Queued for AI agent. Tell Codex in VS Code:\n"Check Figma messages and process them"`,
         }));
       }
       break;
@@ -294,6 +307,29 @@ server.tool(
           type: "image",
           data: base64,
           mimeType: format === "JPG" ? "image/jpeg" : format === "PDF" ? "application/pdf" : "image/png",
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "get_chat_messages",
+  "Get pending chat messages from the Figma plugin. Users send design requests via the Figma chat UI. Call this tool to check for new messages, then use other Figma tools to fulfill the requests. After processing, the queue is cleared.",
+  {},
+  async () => {
+    if (chatQueue.length === 0) {
+      return {
+        content: [{ type: "text", text: "No pending messages from Figma." }],
+      };
+    }
+    const messages = [...chatQueue];
+    chatQueue.length = 0; // clear queue
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(messages, null, 2),
         },
       ],
     };

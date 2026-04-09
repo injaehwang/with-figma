@@ -9,6 +9,5 @@
     "allowedDomains": ["http://localhost:3055", "ws://localhost:3055"],
     "reasoning": "WebSocket connection to local MCP server"
   },
-  "permissions": ["currentuser"],
-  "capabilities": ["inspect"]
+  "permissions": ["currentuser"]
 }

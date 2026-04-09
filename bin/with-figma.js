@@ -48,13 +48,16 @@ if (command === "init") {
   // Show Figma plugin path
   const manifestPath = path.join(PKG_ROOT, "figma-plugin", "manifest.json");
   console.log("");
-  console.log("MCP server configured. Next steps:");
+  console.log("Done! Next steps:");
   console.log("");
-  console.log("1. Import Figma plugin:");
+  console.log("1. Import Figma plugin (one-time):");
   console.log("   Figma → Plugins → Development → Import plugin from manifest");
   console.log("   Path: " + manifestPath);
   console.log("");
-  console.log("2. Restart VS Code or Claude Code");
+  console.log("2. Start MCP server (no editor restart needed):");
+  console.log("   VS Code:     Ctrl+Shift+P → 'MCP: List Servers' → start 'with-figma'");
+  console.log("   Claude Code:  /mcp → restart 'with-figma'");
+  console.log("");
   console.log("3. Open the plugin in Figma → select elements → chat with AI");
 
   process.exit(0);

@@ -12,17 +12,17 @@ let pages: any[] = [];
 const pendingRequests = new Map<string, (data: any) => void>();
 let requestCounter = 0;
 
-// Chat message queue from Figma
-interface ChatMessage {
-  text: string;
-  selection: any[];
-  page: any;
-  timestamp: string;
-}
-const chatQueue: ChatMessage[] = [];
-
 function genRequestId(): string {
   return `req_${++requestCounter}_${Date.now()}`;
+}
+
+// ─── Activity log → Figma plugin UI ──────────────────────────────
+
+function sendActivity(text: string, level: "status" | "action" | "success" | "error" = "status") {
+  if (figmaSocket && figmaSocket.readyState === WebSocket.OPEN) {
+    figmaSocket.send(JSON.stringify({ type: "activity", text, level }));
+  }
+  console.error(`[with-figma] [${level}] ${text}`);
 }
 
 // ─── WebSocket Server (Figma plugin connects here) ────────────────
@@ -34,8 +34,7 @@ wss.on("connection", (socket) => {
   console.error("[with-figma] Figma plugin connected");
   figmaSocket = socket;
 
-  // Notify plugin that we're ready
-  socket.send(JSON.stringify({ type: "status", text: "MCP server connected. Ready for commands." }));
+  sendActivity("MCP server connected. Waiting for agent commands.");
 
   socket.on("message", (raw) => {
     try {
@@ -61,24 +60,6 @@ function handleFigmaMessage(msg: any) {
 
     case "pages-list":
       pages = msg.pages || [];
-      break;
-
-    case "chat-message":
-      currentSelection = msg.selection || currentSelection;
-      currentPage = msg.page || currentPage;
-      chatQueue.push({
-        text: msg.text,
-        selection: msg.selection || [],
-        page: msg.page || null,
-        timestamp: new Date().toISOString(),
-      });
-      console.error(`[with-figma] Chat message queued: "${msg.text}"`);
-      if (figmaSocket) {
-        figmaSocket.send(JSON.stringify({
-          type: "chat-response",
-          text: `Queued for AI agent. Tell Codex in VS Code:\n"Check Figma messages and process them"`,
-        }));
-      }
       break;
 
     // Results from Figma plugin operations
@@ -127,7 +108,7 @@ function sendToFigma(command: any, timeoutMs = 10000): Promise<any> {
 
 const server = new McpServer({
   name: "with-figma",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 // --- Resources ---
@@ -158,16 +139,19 @@ server.tool(
   "get_selection",
   "Get the currently selected elements in Figma. Returns node details including type, size, position, and properties.",
   {},
-  async () => ({
-    content: [
-      {
-        type: "text",
-        text: currentSelection.length > 0
-          ? JSON.stringify({ page: currentPage, nodes: currentSelection }, null, 2)
-          : "No elements are currently selected in Figma.",
-      },
-    ],
-  })
+  async () => {
+    sendActivity("Inspecting current selection...", "action");
+    const result = currentSelection.length > 0
+      ? JSON.stringify({ page: currentPage, nodes: currentSelection }, null, 2)
+      : "No elements are currently selected in Figma.";
+    sendActivity(
+      currentSelection.length > 0
+        ? `Found ${currentSelection.length} selected element(s)`
+        : "No elements selected",
+      currentSelection.length > 0 ? "success" : "status"
+    );
+    return { content: [{ type: "text", text: result }] };
+  }
 );
 
 server.tool(
@@ -175,10 +159,10 @@ server.tool(
   "Get detailed information about a specific Figma node by ID.",
   { nodeId: z.string().describe("The Figma node ID") },
   async ({ nodeId }) => {
+    sendActivity(`Inspecting node ${nodeId}...`, "action");
     const result = await sendToFigma({ type: "get-node", nodeId });
-    return {
-      content: [{ type: "text", text: JSON.stringify(result.node, null, 2) }],
-    };
+    sendActivity(`Inspected: ${result.node?.name || nodeId}`, "success");
+    return { content: [{ type: "text", text: JSON.stringify(result.node, null, 2) }] };
   }
 );
 
@@ -193,10 +177,10 @@ server.tool(
     y: z.number().default(0).describe("Y position"),
   },
   async (params) => {
+    sendActivity(`Creating frame "${params.name}" (${params.width}×${params.height})...`, "action");
     const result = await sendToFigma({ type: "create-frame", ...params });
-    return {
-      content: [{ type: "text", text: `Frame created: ${JSON.stringify(result.node, null, 2)}` }],
-    };
+    sendActivity(`Created frame "${params.name}"`, "success");
+    return { content: [{ type: "text", text: `Frame created: ${JSON.stringify(result.node, null, 2)}` }] };
   }
 );
 
@@ -217,15 +201,15 @@ server.tool(
       .describe("Fill color (RGBA 0-1)"),
   },
   async (params) => {
+    sendActivity(`Creating rectangle "${params.name}" (${params.width}×${params.height})...`, "action");
     const command: any = { type: "create-rectangle", ...params };
     if (params.fillColor) {
       command.fills = [{ type: "SOLID", color: params.fillColor }];
       delete command.fillColor;
     }
     const result = await sendToFigma(command);
-    return {
-      content: [{ type: "text", text: `Rectangle created: ${JSON.stringify(result.node, null, 2)}` }],
-    };
+    sendActivity(`Created rectangle "${params.name}"`, "success");
+    return { content: [{ type: "text", text: `Rectangle created: ${JSON.stringify(result.node, null, 2)}` }] };
   }
 );
 
@@ -245,15 +229,15 @@ server.tool(
       .describe("Text color (RGBA 0-1)"),
   },
   async (params) => {
+    sendActivity(`Creating text "${params.characters.slice(0, 30)}${params.characters.length > 30 ? '...' : ''}"...`, "action");
     const command: any = { type: "create-text", ...params };
     if (params.fillColor) {
       command.fills = [{ type: "SOLID", color: params.fillColor }];
       delete command.fillColor;
     }
     const result = await sendToFigma(command);
-    return {
-      content: [{ type: "text", text: `Text created: ${JSON.stringify(result.node, null, 2)}` }],
-    };
+    sendActivity(`Created text "${params.name}"`, "success");
+    return { content: [{ type: "text", text: `Text created: ${JSON.stringify(result.node, null, 2)}` }] };
   }
 );
 
@@ -267,10 +251,11 @@ server.tool(
       .describe("Object of properties to set (e.g. { x: 10, name: 'New Name', visible: false })"),
   },
   async ({ nodeId, properties }) => {
+    const propKeys = Object.keys(properties).join(", ");
+    sendActivity(`Modifying node ${nodeId} (${propKeys})...`, "action");
     const result = await sendToFigma({ type: "modify-node", nodeId, properties });
-    return {
-      content: [{ type: "text", text: `Node modified: ${JSON.stringify(result.node, null, 2)}` }],
-    };
+    sendActivity(`Modified: ${result.node?.name || nodeId}`, "success");
+    return { content: [{ type: "text", text: `Node modified: ${JSON.stringify(result.node, null, 2)}` }] };
   }
 );
 
@@ -279,10 +264,10 @@ server.tool(
   "Delete a node from the Figma document.",
   { nodeId: z.string().describe("The node ID to delete") },
   async ({ nodeId }) => {
+    sendActivity(`Deleting node ${nodeId}...`, "action");
     const result = await sendToFigma({ type: "delete-node", nodeId });
-    return {
-      content: [{ type: "text", text: `Deleted node: ${result.nodeId}` }],
-    };
+    sendActivity(`Deleted node ${result.nodeId}`, "success");
+    return { content: [{ type: "text", text: `Deleted node: ${result.nodeId}` }] };
   }
 );
 
@@ -295,7 +280,9 @@ server.tool(
     scale: z.number().default(2).describe("Export scale factor"),
   },
   async ({ nodeId, format, scale }) => {
+    sendActivity(`Exporting node ${nodeId} as ${format}...`, "action");
     const result = await sendToFigma({ type: "export-node", nodeId, format, scale });
+    sendActivity(`Exported as ${format}`, "success");
     if (format === "SVG") {
       const text = new TextDecoder().decode(new Uint8Array(result.data));
       return { content: [{ type: "text", text }] };
@@ -314,38 +301,15 @@ server.tool(
 );
 
 server.tool(
-  "get_chat_messages",
-  "Get pending chat messages from the Figma plugin. Users send design requests via the Figma chat UI. Call this tool to check for new messages, then use other Figma tools to fulfill the requests. After processing, the queue is cleared.",
-  {},
-  async () => {
-    if (chatQueue.length === 0) {
-      return {
-        content: [{ type: "text", text: "No pending messages from Figma." }],
-      };
-    }
-    const messages = [...chatQueue];
-    chatQueue.length = 0; // clear queue
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(messages, null, 2),
-        },
-      ],
-    };
-  }
-);
-
-server.tool(
-  "send_chat_message",
-  "Send a message back to the Figma plugin chat UI to communicate with the user.",
-  { text: z.string().describe("Message text to display in chat") },
-  async ({ text }) => {
-    if (figmaSocket && figmaSocket.readyState === WebSocket.OPEN) {
-      figmaSocket.send(JSON.stringify({ type: "chat-response", text }));
-      return { content: [{ type: "text", text: `Message sent to Figma chat: "${text}"` }] };
-    }
-    return { content: [{ type: "text", text: "Error: Figma plugin is not connected" }] };
+  "send_activity",
+  "Send an activity/status message to the Figma plugin log panel.",
+  {
+    text: z.string().describe("Activity message to display"),
+    level: z.enum(["status", "action", "success", "error"]).default("status").describe("Log level"),
+  },
+  async ({ text, level }) => {
+    sendActivity(text, level);
+    return { content: [{ type: "text", text: `Activity logged: "${text}"` }] };
   }
 );
 

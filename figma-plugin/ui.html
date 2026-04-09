@@ -13,9 +13,8 @@
       height: 100vh;
     }
 
-    /* ─── Header ─── */
     .header {
-      padding: 12px 16px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--figma-color-border, #e5e5e5);
       display: flex;
       align-items: center;
@@ -25,13 +24,14 @@
       width: 8px; height: 8px;
       border-radius: 50%;
       background: #ccc;
+      flex-shrink: 0;
     }
     .status-dot.connected { background: #18a957; }
     .status-dot.connecting { background: #f5a623; animation: pulse 1s infinite; }
     @keyframes pulse { 50% { opacity: 0.5; } }
-    .header-title { font-weight: 600; flex: 1; }
+    .header-title { font-weight: 600; flex: 1; font-size: 13px; }
+    .header-status { font-size: 11px; color: var(--figma-color-text-secondary, #999); }
 
-    /* ─── Selection Info ─── */
     .selection-bar {
       padding: 8px 16px;
       background: var(--figma-color-bg-secondary, #f5f5f5);
@@ -44,96 +44,69 @@
       color: var(--figma-color-text, #333);
     }
 
-    /* ─── Chat Area ─── */
-    .chat-area {
+    /* Activity Log */
+    .log-area {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 12px 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 6px;
     }
-    .message {
-      max-width: 85%;
-      padding: 10px 14px;
-      border-radius: 12px;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-    .message.user {
-      align-self: flex-end;
-      background: #0d99ff;
-      color: #fff;
-      border-bottom-right-radius: 4px;
-    }
-    .message.assistant {
-      align-self: flex-start;
-      background: var(--figma-color-bg-secondary, #f0f0f0);
-      border-bottom-left-radius: 4px;
-    }
-    .message.system {
-      align-self: center;
-      font-size: 11px;
-      color: var(--figma-color-text-tertiary, #999);
-      background: none;
-      padding: 4px;
-    }
-
-    /* ─── Input Area ─── */
-    .input-area {
-      padding: 12px 16px;
-      border-top: 1px solid var(--figma-color-border, #e5e5e5);
+    .log-entry {
       display: flex;
       gap: 8px;
+      align-items: flex-start;
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 4px 0;
     }
-    .input-area textarea {
-      flex: 1;
-      border: 1px solid var(--figma-color-border, #ddd);
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-family: inherit;
-      resize: none;
-      outline: none;
-      background: var(--figma-color-bg, #fff);
+    .log-entry .log-time {
+      color: var(--figma-color-text-tertiary, #aaa);
+      font-size: 11px;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .log-entry .log-icon {
+      flex-shrink: 0;
+      width: 16px;
+      text-align: center;
+    }
+    .log-entry .log-text {
       color: var(--figma-color-text, #333);
-      min-height: 40px;
-      max-height: 120px;
+      word-break: break-word;
     }
-    .input-area textarea:focus { border-color: #0d99ff; }
-    .input-area button {
-      background: #0d99ff;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      align-self: flex-end;
+    .log-entry.status .log-text { color: var(--figma-color-text-secondary, #888); }
+    .log-entry.action .log-text { color: #0d99ff; }
+    .log-entry.success .log-text { color: #18a957; }
+    .log-entry.error .log-text { color: #f24822; }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--figma-color-text-tertiary, #aaa);
+      font-size: 12px;
+      text-align: center;
+      padding: 40px;
+      line-height: 1.6;
     }
-    .input-area button:hover { background: #0b85e0; }
-    .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="status-dot" id="statusDot"></div>
-    <span class="header-title">With Figma AI</span>
-    <span id="statusText" style="font-size:11px; color:#999">Disconnected</span>
+    <span class="header-title">With Figma</span>
+    <span class="header-status" id="statusText">Disconnected</span>
   </div>
 
-  <div class="selection-bar" id="selectionBar">
-    No selection
-  </div>
+  <div class="selection-bar" id="selectionBar">No selection</div>
 
-  <div class="chat-area" id="chatArea">
-    <div class="message system">Select an element and describe what you want to do.</div>
-  </div>
-
-  <div class="input-area">
-    <textarea id="input" placeholder="이 요소를 어떻게 작업할까요?" rows="1"></textarea>
-    <button id="sendBtn" disabled>Send</button>
+  <div class="log-area" id="logArea">
+    <div class="empty-state" id="emptyState">
+      Select elements in Figma,<br>then tell your AI agent in VS Code<br>what to do with them.
+    </div>
   </div>
 
   <script>
@@ -144,9 +117,8 @@
     let currentPage = null;
     let reconnectTimer = null;
 
-    const chatArea = document.getElementById("chatArea");
-    const input = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
+    const logArea = document.getElementById("logArea");
+    const emptyState = document.getElementById("emptyState");
     const statusDot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
     const selectionBar = document.getElementById("selectionBar");
@@ -156,19 +128,13 @@
     function connect() {
       if (ws && ws.readyState <= 1) return;
       setStatus("connecting");
-
       ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
         setStatus("connected");
-        addMessage("system", "Connected to AI server.");
-        // Send current selection state
+        addLog("status", "Connected to MCP server");
         if (currentSelection.length > 0) {
-          ws.send(JSON.stringify({
-            type: "selection-update",
-            nodes: currentSelection,
-            page: currentPage,
-          }));
+          ws.send(JSON.stringify({ type: "selection-update", nodes: currentSelection, page: currentPage }));
         }
       };
 
@@ -176,9 +142,7 @@
         try {
           const msg = JSON.parse(event.data);
           handleServerMessage(msg);
-        } catch (e) {
-          console.error("Failed to parse message:", e);
-        }
+        } catch (e) {}
       };
 
       ws.onclose = () => {
@@ -186,9 +150,7 @@
         scheduleReconnect();
       };
 
-      ws.onerror = () => {
-        ws.close();
-      };
+      ws.onerror = () => ws.close();
     }
 
     function scheduleReconnect() {
@@ -199,28 +161,23 @@
     function setStatus(state) {
       statusDot.className = "status-dot " + (state === "connected" ? "connected" : state === "connecting" ? "connecting" : "");
       statusText.textContent = state === "connected" ? "Connected" : state === "connecting" ? "Connecting..." : "Disconnected";
-      sendBtn.disabled = state !== "connected";
     }
 
-    // ─── Server message handling ──────────────────────────────────
+    // ─── Server messages ──────────────────────────────────────────
 
     function handleServerMessage(msg) {
       switch (msg.type) {
-        case "chat-response":
-          addMessage("assistant", msg.text);
+        case "activity":
+          addLog(msg.level || "status", msg.text);
           break;
-
         case "figma-command":
-          // Relay command to Figma plugin sandbox
           parent.postMessage({ pluginMessage: msg.command }, "*");
           break;
-
         case "request-selection":
           parent.postMessage({ pluginMessage: { type: "get-selection" } }, "*");
           break;
-
         case "status":
-          addMessage("system", msg.text);
+          addLog("status", msg.text);
           break;
       }
     }
@@ -236,13 +193,8 @@
           currentSelection = msg.nodes;
           currentPage = msg.page;
           updateSelectionUI();
-          // Forward to server
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-              type: "selection-update",
-              nodes: msg.nodes,
-              page: msg.page,
-            }));
+            ws.send(JSON.stringify({ type: "selection-update", nodes: msg.nodes, page: msg.page }));
           }
           break;
 
@@ -252,7 +204,6 @@
           }
           break;
 
-        // Forward all result messages to server
         case "node-data":
         case "node-created":
         case "node-modified":
@@ -265,57 +216,46 @@
       }
     };
 
-    // ─── UI Helpers ───────────────────────────────────────────────
+    // ─── UI ───────────────────────────────────────────────────────
 
     function updateSelectionUI() {
       if (currentSelection.length === 0) {
         selectionBar.innerHTML = "No selection";
       } else if (currentSelection.length === 1) {
         const n = currentSelection[0];
-        selectionBar.innerHTML = `<span class="node-name">${n.name}</span> (${n.type}) — ${Math.round(n.width)}×${Math.round(n.height)}`;
+        selectionBar.innerHTML = '<span class="node-name">' + esc(n.name) + '</span> (' + n.type + ') — ' + Math.round(n.width) + '×' + Math.round(n.height);
       } else {
-        selectionBar.innerHTML = `<span class="node-name">${currentSelection.length} elements</span> selected`;
+        selectionBar.innerHTML = '<span class="node-name">' + currentSelection.length + ' elements</span> selected';
       }
     }
 
-    function addMessage(role, text) {
-      const div = document.createElement("div");
-      div.className = "message " + role;
-      div.textContent = text;
-      chatArea.appendChild(div);
-      chatArea.scrollTop = chatArea.scrollHeight;
+    const ICONS = { status: "○", action: "▶", success: "✓", error: "✗" };
+
+    function addLog(level, text) {
+      if (emptyState) emptyState.remove();
+      const entry = document.createElement("div");
+      entry.className = "log-entry " + level;
+
+      const now = new Date();
+      const time = now.getHours().toString().padStart(2, "0") + ":" +
+                   now.getMinutes().toString().padStart(2, "0") + ":" +
+                   now.getSeconds().toString().padStart(2, "0");
+
+      entry.innerHTML =
+        '<span class="log-time">' + time + '</span>' +
+        '<span class="log-icon">' + (ICONS[level] || "○") + '</span>' +
+        '<span class="log-text">' + esc(text) + '</span>';
+
+      logArea.appendChild(entry);
+      logArea.scrollTop = logArea.scrollHeight;
     }
 
-    // ─── User Input ───────────────────────────────────────────────
-
-    function sendMessage() {
-      const text = input.value.trim();
-      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-      addMessage("user", text);
-      ws.send(JSON.stringify({
-        type: "chat-message",
-        text,
-        selection: currentSelection,
-        page: currentPage,
-      }));
-      input.value = "";
-      input.style.height = "auto";
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
     }
 
-    sendBtn.addEventListener("click", sendMessage);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-    input.addEventListener("input", () => {
-      input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 120) + "px";
-    });
-
-    // Start connection
     connect();
   </script>
 </body>

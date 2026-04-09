@@ -1,6 +1,6 @@
 {
   "name": "with-figma",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "MCP server that connects AI agents to Figma via WebSocket",
   "license": "MIT",
   "bin": {
